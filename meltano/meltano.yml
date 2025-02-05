@@ -1,0 +1,79 @@
+version: 1
+default_environment: dev
+project_id: 3e6a9f35-4515-433f-b8e8-b597cc4be8d7
+environments:
+- name: dev
+- name: staging
+- name: prod
+
+plugins:
+  extractors:
+  - name: tap-postgres
+    variant: meltanolabs
+    pip_url: git+https://github.com/MeltanoLabs/tap-postgres.git
+    config:
+      host: localhost
+      port: 5432
+      user: northwind_user
+      password: thewindisblowing
+      database: northwind
+    select:
+    - public-*.*
+  - name: tap-csv
+    variant: meltanolabs
+    pip_url: git+https://github.com/MeltanoLabs/tap-csv.git
+    config:
+      files:
+      - entity: order_details
+        path: ../data/order_details.csv
+        keys:
+        - order_id
+
+  - name: tap-csv.externo
+    variant: meltanolabs
+    pip_url: git+https://github.com/MeltanoLabs/tap-csv.git
+    config:
+      files:
+      - entity: all_details
+        path: ./output/data/*.csv
+        keys:
+        - order_id
+
+  loaders:
+  - name: target-csv
+    variant: meltanolabs
+    pip_url: git+https://github.com/MeltanoLabs/target-csv.git
+    config:
+      output_path: ./output/data/
+      file_naming_scheme: ./{datestamp}/{stream_name}.csv
+
+  - name: target-postgres
+    variant: meltanolabs
+    pip_url: meltanolabs-target-postgres
+    config:
+      host: localhost
+      port: 5433
+      user: postgres
+      password: secretPostgres
+      database: postgres
+
+  utilities:
+  - name: airflow
+    variant: apache
+    pip_url: git+https://github.com/meltano/airflow-ext.git@main apache-airflow==2.8.1
+      --constraint 
+      https://raw.githubusercontent.com/apache/airflow/constraints-2.8.1/constraints-no-providers-${MELTANO__PYTHON_VERSION}.txt
+      
+jobs:
+- name: pg_csv_local
+  tasks:
+  - tap-postgres target-csv
+
+- name: csv_csv_local
+  tasks:
+  - tap-csv target-csv
+
+- name: csv_postgres_externo
+  tasks:
+  - tap-csv.externo target-postgres
+
